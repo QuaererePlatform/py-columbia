@@ -1,0 +1,6 @@
+.env
+.gitignore
+__pychache__/
+ansible
+docker-compose.yml
+tests

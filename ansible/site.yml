@@ -1,0 +1,6 @@
+---
+# Playbook for deploying columbia-api and columbia-tasks
+
+- hosts: all
+  roles:
+  - role: common

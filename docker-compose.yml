@@ -1,0 +1,10 @@
+version: '3'
+services:
+  columbia-api:
+    build:
+      context: .
+      dockerfile: api.Dockerfile
+  columbia-tasks:
+    build:
+      context: .
+      dockerfile: tasks.Dockerfile
