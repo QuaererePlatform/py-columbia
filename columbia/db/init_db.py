@@ -4,8 +4,8 @@ from .client import q_db
 
 LOGGER = logging.getLogger(__name__)
 
-COLLECTIONS = ['CCIndexData',
-               'CCIndexInfo',
+COLLECTIONS = ['CommonCrawlData',
+               'CommonCrawlIndexInfo',
                'WebSites', ]
 
 
