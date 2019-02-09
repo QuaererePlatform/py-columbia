@@ -5,8 +5,7 @@ from .client import q_db
 LOGGER = logging.getLogger(__name__)
 
 COLLECTIONS = ['CommonCrawlData',
-               'CommonCrawlIndexInfo',
-               'WebSites', ]
+               'CommonCrawlIndexInfo', ]
 
 
 def init_db():
