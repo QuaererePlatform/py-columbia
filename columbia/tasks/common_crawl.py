@@ -18,29 +18,41 @@ def update_cc_data():
         web_site_url = web_site_data['url']
         for index_url, index_id in common_crawl.get_cc_index_urls():
             if index_id in web_site_data.get('cc_index_ids_polled', []):
-                LOGGER.info(f'Already searched {index_id} for {web_site_url}')
+                LOGGER.info('Already searched url using this index.',
+                            extra={'index_id': index_id,
+                                   'index_url': index_url,
+                                   'web_site_url': web_site_url, })
                 continue
             params = {'url': f'{web_site_url}/*',
                       'filter': '=status:200',
                       'output': 'json'}
-            LOGGER.info(f'Searching for {web_site_url} in {index_id}')
+            LOGGER.info('Searching for website using CommonCrawl index'
+                        f' {index_id}',
+                        extra={'index_id': index_id,
+                               'index_url': index_url,
+                               'web_site_url': web_site_url, })
             req = requests.get(index_url, params)
             if req.status_code == 200:
                 for record in req.text.splitlines():
                     record = json.loads(record)
                     if record['status'] != '200':
                         # This is only done as a double-check
-                        LOGGER.error('Not sure how we ended up here: '
-                                     f'found {record} using {index_id} '
-                                     f'with {params}')
+                        LOGGER.error('Not sure how we ended up here.',
+                                     stack_info=True,
+                                     extra={'record': record,
+                                            'params': params,
+                                            'index_url': index_url,})
                         continue
-                    LOGGER.debug(f'Evaluating {record} for CommonCrawl data')
+                    LOGGER.debug('Evaluating record for CommonCrawl data',
+                                 extra={'record': record})
                     common_crawl.update_cc_data(record)
                 LOGGER.debug(f'Finished with {index_id}, marking as fetched')
                 web_sites.mark_url_as_fetched(index_id, web_site_data['url'])
             else:
-                LOGGER.error(f'Error {req.status_code} searching {index_id} '
-                             f'with {params}')
+                LOGGER.error(f'Error searching {index_id}',
+                             stack_info=True,
+                             extra={'params': params,
+                                    'index_url': index_url})
 
 
 @app.task
