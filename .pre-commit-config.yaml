@@ -1,0 +1,10 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v1.14.3
+      hooks:
+        - id: check-ast
+        - id: check-yaml
+  - repo: https://github.com/pre-commit/mirrors-autopep8
+    rev: v1.4.3
+    hooks:
+      - id: autopep8

@@ -1,4 +1,0 @@
-celery[redis]>=4.2
-connexion[swagger-ui]>=2.2
-gunicorn>=19.9.0
-python-arango>=4.4
