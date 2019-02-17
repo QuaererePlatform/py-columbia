@@ -4,14 +4,11 @@
 
 import os
 
-from setuptools import setup
-
-from columbia._version import VERSION
+from setuptools import find_packages, setup
 
 PROJECT_NAME = 'columbia'
-PROJECT_VERSION = VERSION
+PROJECT_VERSION = '0.0.0a0.dev0'
 PROJECT_RELEASE = '.'.join(PROJECT_VERSION.split('.')[:2])
-PACKAGES = [PROJECT_NAME]
 INSTALL_REQUIRES = [
     'celery[redis]>=4.2',
     'connexion[swagger-ui]>=2.2',
@@ -39,17 +36,30 @@ def _create_build_dirs():
             os.makedirs(path)
 
 
+def readme():
+    with open('README.rst') as f:
+        return f.read()
+
+
 setup(name=PROJECT_NAME,
       version=PROJECT_VERSION,
-      description='',
+      description='Part of the Quaerere Platform',
+      long_description=readme(),
+      classifiers=[
+          'Development Status :: 2 - Pre-Alpha',
+          'Programming Language :: Python :: 3.6', ],
       author="Caitlyn O'Hanna",
       author_email='caitlyn.ohanna@virtualxistenz.com',
-      url='',
-      packages=PACKAGES,
+      url='https://github.com/QuaererePlatform/columbia',
+      packages=find_packages(exclude=['docs', 'tests']),
+      include_package_data=True,
+      package_data={'columbia': ['*.yaml']},
+      zip_safe=False,
       test_suite='tests',
       python_requires='~=3.6',
       install_requires=INSTALL_REQUIRES,
       setup_requires=SETUP_REQUIRES,
+      tests_require=TESTS_REQUIRES,
       entry_points={
           'distutils.commands': [
               'build_sphinx = sphinx.setup_command:BuildDoc']},

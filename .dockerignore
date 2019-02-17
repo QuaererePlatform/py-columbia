@@ -1,6 +1,6 @@
 .env
 .gitignore
+.pre-commit-config.yaml
 __pychache__/
 ansible
 docker-compose.yml
-tests
