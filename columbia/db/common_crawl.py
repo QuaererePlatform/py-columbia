@@ -42,3 +42,7 @@ def update_cc_data(record):
                         f'updating {page_data} with {record}')
             record['_key'] = page_data['_key']
             cc_data.update(record)
+
+
+def get_cc_index_url(cc_index_id):
+    pass
