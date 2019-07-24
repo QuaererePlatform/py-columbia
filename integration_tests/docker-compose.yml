@@ -1,0 +1,35 @@
+version: '3'
+
+services:
+  test_db:
+    image: arangodb:3.4
+    ports:
+      - "8529:8529"
+    environment:
+      ARANGO_ROOT_PASSWORD: password
+  web_app:
+    build: ..
+    ports:
+      - "5000:5000"
+    depends_on:
+      - test_db
+    environment:
+      WILLAMETTE_APP: api
+      GUNICORN_HOST: 0.0.0.0
+      ARANGODB_USER: quaerere
+      ARANGODB_PASSWORD: password
+      ARANGODB_ROOT_PASSWORD: password
+      FLASK_SECRET_KEY: integration-testing
+      FLASK_ENV: development
+      ARANGODB_HOST: http://test_db:8529
+      FLASK_APP: willamette.app:create_app
+      GUNICORN_LOGLEVEL: debug
+  test_runner:
+    build: .
+    depends_on:
+      - web_app
+      - test_db
+    environment:
+      ARANGODB_ROOT_PASSWORD: password
+      ARANGODB_USER: quaerere
+      ARANGODB_PASSWORD: password

@@ -7,7 +7,7 @@ fi
 case $COLUMBIA_APP in
     api)
         echo "Running the API app"
-        exec gunicorn -w 4 -b 0.0.0.0:5000 columbia.api:app
+        exec gunicorn -c python:columbia.config.gunicorn_config columbia.app:create_app
         ;;
     tasks)
         echo "Running the tasks app"

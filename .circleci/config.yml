@@ -1,0 +1,285 @@
+version: 2.1
+
+commands:
+
+  bumpversion:
+    description: "Uses bump2version to increase version number"
+    parameters:
+      version_part:
+        type: enum
+        enum: ['major', 'minor', 'patch', 'pre_release', 'pre_release_num']
+      bump_options:
+        type: string
+        default: '--no-tag --commit -m "Bump version: {current_version} → {new_version} [ci skip]"'
+    steps:
+      - restore_cache:
+          key: v1-bumpversion
+      - run:
+          name: Install/Upgrade bumpversion
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip3 install -U bump2version
+      - save_cache:
+          key: v1-bumpversion
+          paths:
+            - "venv"
+      - run:
+          name: Bumpversion
+          command: |
+            git config --global user.email "git-robot@virtualxistenz.com"
+            git config --global user.name "Git Robot"
+            . venv/bin/activate
+            python3 setup.py --version
+            bumpversion << parameters.bump_options >> << parameters.version_part >>
+            python3 setup.py --version
+            git log -n 1
+      - run:
+          name: Push version bump
+          command: |
+            git push -u origin $CIRCLE_BRANCH
+
+  publish_pypi:
+    description: "Uses twine to publish packages to PyPI"
+    parameters:
+      verify_tag:
+        type: boolean
+        default: false
+    steps:
+      - restore_cache:
+          keys:
+            - v1-release-{{ .Branch }}-{{ checksum "requirements.txt" }}
+            - v1-release-{{ .Branch }}
+            - v1-release
+            - v1-dependency-cache-{{ .Branch }}-{{ checksum "requirements.txt" }}-py37
+            - v1-dependency-cache-{{ .Branch }}-{{ checksum "requirements.txt" }}
+            - v1-dependency-cache-{{ .Branch }}
+            - v1-dependency-cache
+      - run:
+          name: Install/Upgrade release requirements
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip3 install -U -r requirements.txt
+            pip3 install -U wheel
+            pip3 install -U twine
+      - save_cache:
+          key: v1-release-{{ .Branch }}-{{ checksum "requirements.txt" }}
+          paths:
+            - "venv"
+      - when:
+          condition: << parameters.verify_tag >>
+          steps:
+            - run:
+                name: Verify git tag vs. package version
+                command: |
+                  . venv/bin/activate
+                  python setup.py verify
+      - run:
+          name: Publish to PyPI
+          command: |
+            . venv/bin/activate
+            python3 setup.py sdist
+            python3 setup.py bdist_wheel
+            twine upload dist/*
+
+  build_docker:
+    description: "Builds docker image"
+    steps:
+      - run:
+          name: Build Docker image
+          command: |
+            TAG=${CIRCLE_TAG:=${CIRCLE_BRANCH}}
+            docker build -t ${IMAGE_NAME}:${TAG} .
+            if [ ! -z "${CIRCLE_TAG}" ]; then
+              docker image tag ${IMAGE_NAME}:${TAG} ${IMAGE_NAME}:latest
+            fi
+
+  save_docker:
+    description: "Export docker image to disk"
+    steps:
+      - run:
+          name: "Save docker image"
+          command: |
+            docker image save -o new_image.tar ${IMAGE_NAME}
+
+  import_docker:
+    description: "Import docker image from disk"
+    steps:
+      - run:
+          name: "Load docker image"
+          command: |
+            docker image import testing/new_image.tar
+            docker image ls
+
+  test_docker:
+    description: "Integration test"
+    steps:
+      - run:
+          name: "Test runner"
+          command: |
+            cd integration_tests
+            docker-compose up test_runner
+
+  publish_docker:
+    description: "Publishes docker image"
+    steps:
+      - deploy:
+          name: Upload Docker image
+          command: |
+            echo "${DOCKERHUB_PASS}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+            docker push ${IMAGE_NAME}
+
+jobs:
+
+  install_deps_py37:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - restore_cache:
+          key: v1-dependency-cache-{{ .Branch }}-{{ checksum "requirements.txt" }}-py37
+      - run:
+          name: Install package dependencies
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip3 install -U -r requirements.txt
+      - save_cache:
+          key: v1-dependency-cache-{{ .Branch }}-{{ checksum "requirements.txt" }}-py37
+          paths:
+            - "venv"
+
+  unittest_py37:
+    docker:
+      - image: circleci/python:3.7
+    environment:
+      PYTEST_ADDOPTS: --cov-report=xml:test-reports/coverage.xml --junitxml=test-reports/junit.xml
+      FLASK_SECRET_KEY: TESTING
+      ARANGODB_USER: testing
+      ARANGODB_PASSWORD: testing
+    steps:
+      - checkout
+      - restore_cache:
+          key: v1-dependency-cache-{{ .Branch }}-{{ checksum "requirements.txt" }}-py37
+      - run:
+          name: Run tests
+          command: |
+            . venv/bin/activate
+            python3 setup.py test
+      - store_test_results:
+          path: test-reports
+      - store_artifacts:
+          path: test-reports
+      - run:
+          name: Smoke Test Install
+          command: |
+            . venv/bin/activate
+            python3 --version
+            python3 setup.py install
+
+  integration_test:
+    docker:
+      - image: circleci/buildpack-deps:stretch
+    environment:
+      IMAGE_NAME: quaerereplatform/columbia
+      APP_NAME: web-app
+      COLUMBIA_API_URL: http://web-app:5000/api/
+      COLUMBIA_APP: api
+      GUNICORN_HOST: 0.0.0.0
+      ARANGODB_USER: quaerere
+      ARANGODB_PASSWORD: password
+      ARANGODB_ROOT_PASSWORD: password
+      FLASK_SECRET_KEY: integration-testing
+      FLASK_ENV: development
+      ARANGODB_HOST: http://test-db:8529
+      GUNICORN_LOGLEVEL: debug
+    steps:
+      - checkout
+      - setup_remote_docker
+      - test_docker
+
+  publish_pypi_dev:
+    docker:
+      - image: circleci/python:3.7
+    environment:
+      TWINE_REPOSITORY_URL: https://test.pypi.org/legacy/
+    steps:
+      - checkout
+      - publish_pypi
+
+  publish_pypi_release:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - publish_pypi
+
+  bump_version_pre_release:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - bumpversion:
+          version_part: pre_release_num
+
+  publish_pypi_prod_tag:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - publish_pypi:
+          verify_tag: true
+
+workflows:
+  version: 2
+
+  build_test_publish_py37:
+    jobs:
+      - install_deps_py37:
+          filters:
+            tags:
+              only: /.*/
+      - unittest_py37:
+          requires:
+            - install_deps_py37
+          filters:
+            tags:
+              only: /.*/
+      - publish_pypi_dev:
+          context: Test PyPI
+          requires:
+            - unittest_py37
+          filters:
+            branches:
+              only: develop
+      - publish_pypi_release:
+          context: Prod PyPI
+          requires:
+            - unittest_py37
+          filters:
+            branches:
+              only: /^release\/.*/
+      - integration_test:
+          requires:
+            - unittest_py37
+          filters:
+            tags:
+              only: /.*/
+      - bump_version_pre_release:
+          requires:
+            - unittest_py37
+          filters:
+            branches:
+              only:
+                - develop
+                - /^release\/.*/
+      - publish_pypi_prod_tag:
+          context: Prod PyPI
+          requires:
+            - unittest_py37
+          filters:
+            tags:
+              only: /^v[0-9]+(\.[0-9]+)+$/
+            branches:
+              ignore: /.*/

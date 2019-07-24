@@ -1,33 +1,32 @@
-import logging
 import json
 
+from celery.utils.log import get_task_logger
 import requests
 
-from .app import app
-from columbia import config
-from columbia.db import common_crawl, web_sites
+from .app import app, ColumbiaTask
+from columbia.config import common as config
 
-LOGGER = logging.getLogger(__name__)
+LOGGER = get_task_logger(__name__)
 
 
-@app.task
-def get_common_crawl_data(web_site_url, cc_index_id):
+@app.task(base=ColumbiaTask, bind=True)
+def start_scan(self, web_site_key, cc_index_key):
     # TODO: Let's figure out how to rate limit things...
     # TODO: Maybe even figure out how to do smaller chunk tracking for resuming
-    index_url = ''
-    web_site_data = {}
-    if cc_index_id in web_site_data.get('cc_index_ids_polled', []):
-        LOGGER.info('Already searched url using this index.',
-                    extra={'cc_index_id': cc_index_id,
-                           'index_url': index_url,
-                           'web_site_url': web_site_url, })
-        return False
+
+    web_site = self.willamette.v1.web_site.get(web_site_key)
+    cc_index = self.columbia.v1.cc_indexes.get(cc_index_key)
+
+
+    index_url = cc_index['cdx_api']
+    web_site_url = web_site['url']
+
     params = {'url': f'{web_site_url}/*',
               'filter': '=status:200',
               'output': 'json'}
     LOGGER.info('Searching for website using CommonCrawl index'
-                f' {cc_index_id}',
-                extra={'cc_index_id': cc_index_id,
+                f' {cc_index_key}',
+                extra={'cc_index_id': cc_index_key,
                        'index_url': index_url,
                        'web_site_url': web_site_url, })
     req = requests.get(index_url, params)
@@ -44,11 +43,11 @@ def get_common_crawl_data(web_site_url, cc_index_id):
                 continue
             LOGGER.debug('Evaluating record for CommonCrawl data',
                          extra={'record': record})
-            common_crawl.update_cc_data(record)
-        LOGGER.debug(f'Finished with {cc_index_id}, marking as fetched')
-        web_sites.mark_url_as_fetched(cc_index_id, web_site_data['url'])
+            # common_crawl.update_cc_data(record)
+        LOGGER.debug(f'Finished with {cc_index_key}, marking as fetched')
+        # web_sites.mark_url_as_fetched(cc_index_id, web_site_data['url'])
     else:
-        LOGGER.error(f'Error searching {cc_index_id}',
+        LOGGER.error(f'Error searching {cc_index_key}',
                      stack_info=True,
                      extra={'params': params,
                             'index_url': index_url})
@@ -56,7 +55,11 @@ def get_common_crawl_data(web_site_url, cc_index_id):
 
 @app.task
 def update_all_cc_data():
-    for web_site_data in web_sites.get_all_web_sites():
+    resp = requests.get(config.WILLAMETTE_URL + 'v1/web-sites/')
+    if resp.status_code != 200:
+        raise Exception
+    web_sites = resp.json()
+    for web_site_data in web_sites:
         web_site_url = web_site_data['url']
         for index_url, index_id in common_crawl.get_cc_index_urls():
             pass
@@ -65,10 +68,10 @@ def update_all_cc_data():
 @app.task
 def update_cc_index_info():
     LOGGER.info(f'Retrieving {config.CC_COLL_INFO_URL}')
-    req = requests.get(config.CC_COLL_INFO_URL)
-    if req.status_code == 200:
-        for record in req.json():
+    resp = requests.get(config.CC_COLL_INFO_URL)
+    if resp.status_code == 200:
+        for record in resp.json():
             common_crawl.update_index_info(record)
     else:
-        LOGGER.error(f'Error {req.status_code} retrieving'
+        LOGGER.error(f'Error {resp.status_code} retrieving'
                      f' {config.CC_COLL_INFO_URL}')

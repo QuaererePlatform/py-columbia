@@ -3,61 +3,83 @@
 """
 
 import os
+import sys
 
-from setuptools import find_packages, setup
+from setuptools import setup
+from setuptools.command.install import install
 
-PROJECT_NAME = 'columbia'
-PROJECT_VERSION = '0.0.0a0.dev0'
-PROJECT_RELEASE = '.'.join(PROJECT_VERSION.split('.')[:2])
+PROJECT_NAME = 'quaerere-columbia'
 INSTALL_REQUIRES = [
     'celery[redis]>=4.2',
-    'connexion[swagger-ui]>=2.2',
-    'gunicorn>=19.9.0',
-    'python-arango>=4.4']
+    'Flask>=1.0.0',
+    'Flask-arango-orm>=0.1.0',
+    'Flask-Classful>=0.14.2',
+    'flask-marshmallow>=0.10.0',
+    'marshmallow>=2.16.0,<3',
+    'python-arango>=4.4',
+    'quaerere-base-flask>=0.2.2',
+    'quaerere-columbia-common',
+    'quaerere-columbia-client',
+    'quaerere-willamette-client',
+]
 SETUP_REQUIRES = [
     'pytest-runner',
     'Sphinx>=1.8.0',
-    'setuptools']
+    'sphinx-rtd-theme',
+    'setuptools', ]
 TESTS_REQUIRES = [
-    'mock==2.0.0',
     'pytest>=4.2.0',
-    'pytest-cov>=2.6.0']
+    'pytest-cov>=2.6.0',
+    'pytest-flake8',
+    'python-dotenv', ]
+DEP_LINKS = [
+    'git+https://github.com/ravenoak/arango-orm@update_meta#egg='
+    'arango-orm-0.5.7', ]
 
 
-def _create_build_dirs():
-    build_dir = os.environ.get('BUILD_ROOT', 'build')
-    build_sub_dirs = [
-        'coverage',
-        'pytest',
-        'sphinx']
-    for sub_dir in build_sub_dirs:
-        path = os.path.join(os.path.dirname(__file__), build_dir, sub_dir)
-        if not os.path.exists(path):
-            os.makedirs(path)
+def get_version():
+    with open('VERSION') as f:
+        return f.readline().strip()
 
 
-def readme():
-    with open('README.rst') as f:
-        return f.read()
+PROJECT_RELEASE = get_version()
+PROJECT_VERSION = '.'.join(PROJECT_RELEASE.split('.')[:2])
+
+
+# Taken from https://circleci.com/blog/continuously-deploying-python-\
+# packages-to-pypi-with-circleci/
+class VerifyVersionCommand(install):
+    """Custom command to verify that the git tag matches our version"""
+    description = 'verify that the git tag matches our version'
+
+    def run(self):
+        tag = os.getenv('CIRCLE_TAG')
+
+        if tag != 'v' + PROJECT_RELEASE:
+            info = "Git tag: {0} does not match the version of this " \
+                   "app: {1}".format(tag, PROJECT_RELEASE)
+            sys.exit(info)
+
+
+class WriteRequirementsCommand(install):
+    """Writes all package requirements into requirements.txt"""
+    description = 'creates requirements.txt'
+
+    def run(self):
+        header = '# Generated file, do not edit\n'
+        all_requirements = INSTALL_REQUIRES + SETUP_REQUIRES + \
+                           TESTS_REQUIRES + DEP_LINKS
+        all_requirements = [I + '\n' for I in all_requirements]
+        all_requirements.insert(0, header)
+        with open('requirements.txt', 'w') as fh:
+            fh.writelines(all_requirements)
 
 
 setup(name=PROJECT_NAME,
       version=PROJECT_VERSION,
-      description='Part of the Quaerere Platform',
-      long_description=readme(),
-      classifiers=[
-          'Development Status :: 2 - Pre-Alpha',
-          'Programming Language :: Python :: 3.6', ],
-      author="Caitlyn O'Hanna",
-      author_email='caitlyn.ohanna@virtualxistenz.com',
-      url='https://github.com/QuaererePlatform/columbia',
-      packages=find_packages(exclude=['docs', 'tests']),
-      include_package_data=True,
-      package_data={'columbia': ['*.yaml']},
-      zip_safe=False,
       test_suite='tests',
-      python_requires='~=3.6',
       install_requires=INSTALL_REQUIRES,
+      dependency_links=DEP_LINKS,
       setup_requires=SETUP_REQUIRES,
       tests_require=TESTS_REQUIRES,
       entry_points={
@@ -68,4 +90,7 @@ setup(name=PROJECT_NAME,
               'project': ('setup.py', PROJECT_NAME),
               'version': ('setup.py', PROJECT_VERSION),
               'release': ('setup.py', PROJECT_RELEASE),
-              'source_dir': ('setup.py', 'docs')}})
+              'source_dir': ('setup.py', 'docs'), }, },
+      cmdclass={
+          'mk_reqs': WriteRequirementsCommand,
+          'verify': VerifyVersionCommand, }, )
