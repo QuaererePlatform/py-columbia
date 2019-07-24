@@ -1,8 +1,87 @@
 version: '3'
+
 services:
+  quaerere-arangodb:
+    image: arangodb:3.4
+    ports:
+      - "8529:8529"
+    env_file:
+      - '.env-arangodb'
+    volumes:
+      - :/var/lib/arangodb3
+      - :/var/lib/arangodb3-apps
+
+  quaerere-redis:
+    image: redis:5.0-alpine
+    ports:
+      - "6379:6379"
+
+  quaerere-rabbitmq:
+    image: rabbitmq:3.7-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  willamette-api:
+    image: quaerereplatform/willamette:0.1
+    ports:
+      - "5000:5000"
+    depends_on:
+      - quaerere-arangodb
+    env_file:
+      - '.env-willamette-api'
+    environment:
+      WILLAMETTE_APP: api
+      GUNICORN_HOST: 0.0.0.0
+      ARANGODB_USER: quaerere
+      FLASK_ENV: development
+      ARANGODB_HOST: http://test_db:8529
+      FLASK_APP: willamette.app:create_app
+      GUNICORN_LOGLEVEL: debug
+
   columbia-api:
-    build:
-      context: .
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      - quaerere-arangodb
+      - willamette-api
+    env_file:
+      - '.env-columbia-api'
+    environment:
+      COLUMBIA_APP: api
+      GUNICORN_HOST: 0.0.0.0
+      ARANGODB_USER: quaerere
+      ARANGODB_PASSWORD: password
+      ARANGODB_ROOT_PASSWORD: password
+      FLASK_SECRET_KEY: integration-testing
+      FLASK_ENV: development
+      ARANGODB_HOST: http://test_db:8529
+      FLASK_APP: willamette.app:create_app
+      GUNICORN_LOGLEVEL: debug
+
   columbia-tasks:
-    build:
-      context: .
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      - columbia-api
+    env_file:
+      - '.env-columbia-tasks'
+    environment:
+      COLUMBIA_APP: tasks
+      CELERY_BROKER_HOST: quaerere-rabbitmq
+      CELERY_RESULT_HOST: quaerere-redis
+
+  columbia-scheduler:
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      - columbia-api
+    env_file:
+      - '.env-columbia-scheduler'
+    environment:
+      COLUMBIA_APP: scheduler
+      CELERY_BROKER_HOST: quaerere-rabbitmq
+      CELERY_RESULT_HOST: quaerere-redis
