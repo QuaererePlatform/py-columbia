@@ -2,17 +2,56 @@
 cc_data:
   - _key: 'cc-data-1'
     url_key: 'com,example'
-    timestamp: ''
-    url: ''
-    status: ''
-    filename: ''
-    offset: ''
-    digest: ''
-    length: ''
-    mime: ''
-    mime_detected: ''
-    charset: ''
-    languages: ''
+    timestamp: '20181209185936'
+    url: 'http://example.com'
+    status: 200
+    filename: 'foo/bar'
+    offset: 31809087
+    digest: 'K23JSIR7ZSQ7H5GBRTZMQJR524FNQZPP'
+    length: 112847
+    mime: 'text/html'
+    mime_detected: 'text/html'
+    charset: 'UTF-8'
+    languages: 'eng'
+  - _key: 'cc-data-2'
+    url_key: 'com,example'
+    timestamp: '20181209185936'
+    url: 'http://example.com/1'
+    status: 200
+    filename: 'foo/bar'
+    offset: 31009087
+    digest: 'K23JSIR7ZSQ7H5GDHTZMQJR524FNQZPP'
+    length: 110847
+    mime: 'text/html'
+    mime_detected: 'text/html'
+    charset: 'UTF-8'
+    languages: 'eng'
+  - _key: 'cc-data-3'
+    url_key: 'com,example'
+    timestamp: '20181209185936'
+    url: 'http://example.com/spam'
+    status: 200
+    filename: 'foo/bar'
+    offset: 30809087
+    digest: 'K23JSIR7ZWR7H5GBRTZMQJR524FNQZPP'
+    length: 112807
+    mime: 'text/html'
+    mime_detected: 'text/html'
+    charset: 'UTF-8'
+    languages: 'eng'
+  - _key: 'cc-data-4'
+    url_key: 'com,example'
+    timestamp: '20181209185936'
+    url: 'http://example.com/eggs'
+    status: 200
+    filename: 'foo/bar'
+    offset: 31509087
+    digest: 'K23KFIR7ZSQ7H5GBRTZMQJR524FNQZPP'
+    length: 112447
+    mime: 'text/html'
+    mime_detected: 'text/html'
+    charset: 'UTF-8'
+    languages: 'eng'
 cc_indexes:
   - _key: 'cc-index-1'
     id: 'SOME-CC-ID-1'

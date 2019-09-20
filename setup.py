@@ -12,29 +12,30 @@ PROJECT_NAME = 'quaerere-columbia'
 INSTALL_REQUIRES = [
     'celery[redis]>=4.2',
     'Flask>=1.0.0',
-    'Flask-arango-orm>=0.1.0',
+    'Flask-arango-orm>=0.1.1',
     'Flask-Classful>=0.14.2',
     'flask-marshmallow>=0.10.0',
-    'marshmallow>=2.16.0,<3',
-    'python-arango>=4.4',
-    'quaerere-base-flask>=0.2.2',
+    'marshmallow<3,>=2.16.0',
+    'python-arango<5,>=4.4',
+    'quaerere-base-flask>=0.3.0',
     'quaerere-columbia-common',
-    'quaerere-columbia-client',
     'quaerere-willamette-client',
 ]
 SETUP_REQUIRES = [
     'pytest-runner',
     'Sphinx>=1.8.0',
     'sphinx-rtd-theme',
-    'setuptools', ]
+    'setuptools',
+]
 TESTS_REQUIRES = [
     'pytest>=4.2.0',
     'pytest-cov>=2.6.0',
     'pytest-flake8',
-    'python-dotenv', ]
+    'python-dotenv',
+]
 DEP_LINKS = [
-    'git+https://github.com/ravenoak/arango-orm@update_meta#egg='
-    'arango-orm-0.5.7', ]
+    'git+https://github.com/ravenoak/arango-orm@update_meta#egg=arango-orm',
+]
 
 
 def get_version():
@@ -84,13 +85,18 @@ setup(name=PROJECT_NAME,
       tests_require=TESTS_REQUIRES,
       entry_points={
           'distutils.commands': [
-              'build_sphinx = sphinx.setup_command:BuildDoc']},
+              'build_sphinx = sphinx.setup_command:BuildDoc',
+          ],
+      },
       command_options={
           'build_sphinx': {
               'project': ('setup.py', PROJECT_NAME),
               'version': ('setup.py', PROJECT_VERSION),
               'release': ('setup.py', PROJECT_RELEASE),
-              'source_dir': ('setup.py', 'docs'), }, },
+              'source_dir': ('setup.py', 'docs'),
+          },
+      },
       cmdclass={
           'mk_reqs': WriteRequirementsCommand,
-          'verify': VerifyVersionCommand, }, )
+          'verify': VerifyVersionCommand,
+      },)

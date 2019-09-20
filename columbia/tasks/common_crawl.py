@@ -1,10 +1,14 @@
+__all__ = ['start_scan', 'update_all_cc_data', 'update_cc_index_info']
+
 import json
 
 from celery.utils.log import get_task_logger
+from columbia_common.schemas.api_v1 import CCIndexesSchema
 import requests
 
-from .app import app, ColumbiaTask
 from columbia.config import common as config
+from columbia.models.api_v1.common_crawl import CCDataModel, CCIndexesModel
+from .app import app, ColumbiaTask
 
 LOGGER = get_task_logger(__name__)
 
@@ -15,10 +19,9 @@ def start_scan(self, web_site_key, cc_index_key):
     # TODO: Maybe even figure out how to do smaller chunk tracking for resuming
 
     web_site = self.willamette.v1.web_site.get(web_site_key)
-    cc_index = self.columbia.v1.cc_indexes.get(cc_index_key)
+    cc_index = self.db_conn.query(CCIndexesModel).by_key(cc_index_key)
 
-
-    index_url = cc_index['cdx_api']
+    index_url = cc_index.cdx_api
     web_site_url = web_site['url']
 
     params = {'url': f'{web_site_url}/*',
@@ -43,9 +46,9 @@ def start_scan(self, web_site_key, cc_index_key):
                 continue
             LOGGER.debug('Evaluating record for CommonCrawl data',
                          extra={'record': record})
-            # common_crawl.update_cc_data(record)
-        LOGGER.debug(f'Finished with {cc_index_key}, marking as fetched')
-        # web_sites.mark_url_as_fetched(cc_index_id, web_site_data['url'])
+            cc_data = CCDataModel(record)
+            self.db_conn.add(cc_data)
+        LOGGER.debug(f'Finished with {cc_index_key}')
     else:
         LOGGER.error(f'Error searching {cc_index_key}',
                      stack_info=True,
@@ -53,25 +56,31 @@ def start_scan(self, web_site_key, cc_index_key):
                             'index_url': index_url})
 
 
-@app.task
-def update_all_cc_data():
-    resp = requests.get(config.WILLAMETTE_URL + 'v1/web-sites/')
-    if resp.status_code != 200:
-        raise Exception
-    web_sites = resp.json()
-    for web_site_data in web_sites:
-        web_site_url = web_site_data['url']
-        for index_url, index_id in common_crawl.get_cc_index_urls():
-            pass
+@app.task(base=ColumbiaTask, bind=True)
+def update_all_cc_data(self):
+    web_sites = self.willamette.v1.web_site.all()
+    sub_tasks = []
+    for web_site in web_sites:
+        for index_key in self.db_conn.query(CCIndexesModel).returns('_key').all():
+            sub_tasks.append((web_site['_key'], index_key))
+    return sub_tasks
 
 
-@app.task
-def update_cc_index_info():
+
+@app.task(base=ColumbiaTask, bind=True)
+def update_cc_index_info(self):
     LOGGER.info(f'Retrieving {config.CC_COLL_INFO_URL}')
     resp = requests.get(config.CC_COLL_INFO_URL)
     if resp.status_code == 200:
-        for record in resp.json():
-            common_crawl.update_index_info(record)
+        schema = CCIndexesSchema()
+        data = schema.load(resp.json(), many=True)
+        if len(data.errors) > 0:
+            LOGGER.error(f'Errors from unmarshal: {data.errors}')
+            raise Exception
+        for record in data.data:
+            cc_index = CCIndexesModel(**record)
+            self.db_conn.add(cc_index)
     else:
         LOGGER.error(f'Error {resp.status_code} retrieving'
                      f' {config.CC_COLL_INFO_URL}')
+        raise Exception

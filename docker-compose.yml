@@ -1,87 +1,94 @@
-version: '3'
+version: "3"
 
 services:
   quaerere-arangodb:
-    image: arangodb:3.4
+    image: "quaerereplatform/quaerere-arangodb:latest"
     ports:
       - "8529:8529"
     env_file:
-      - '.env-arangodb'
+      - ".env.arangodb"
     volumes:
-      - :/var/lib/arangodb3
-      - :/var/lib/arangodb3-apps
+      - "../../volumes/arangodb:/var/lib/arangodb3"
+      - "../../volumes/arangodb-apps:/var/lib/arangodb3-apps"
 
   quaerere-redis:
-    image: redis:5.0-alpine
+    image: "redis:5.0-alpine"
     ports:
       - "6379:6379"
 
   quaerere-rabbitmq:
-    image: rabbitmq:3.7-management-alpine
+    image: "rabbitmq:3.7-management-alpine"
     ports:
       - "5672:5672"
       - "15672:15672"
 
   willamette-api:
-    image: quaerereplatform/willamette:0.1
+    image: "quaerereplatform/willamette:0.1"
     ports:
       - "5000:5000"
     depends_on:
       - quaerere-arangodb
     env_file:
-      - '.env-willamette-api'
+      - ".env.willamette-api"
     environment:
-      WILLAMETTE_APP: api
-      GUNICORN_HOST: 0.0.0.0
-      ARANGODB_USER: quaerere
-      FLASK_ENV: development
-      ARANGODB_HOST: http://test_db:8529
       FLASK_APP: willamette.app:create_app
-      GUNICORN_LOGLEVEL: debug
+      WILLAMETTE_APP: api
+      WILLAMETTE_URL_PREFIX: http://willamette-api:5000/api/
 
   columbia-api:
-    build: .
+    build:
+      context: "."
+      args:
+        develop: "true"
     ports:
-      - "5000:5000"
+      - "5001:5000"
     depends_on:
       - quaerere-arangodb
+      - quaerere-rabbitmq
+      - quaerere-redis
       - willamette-api
     env_file:
-      - '.env-columbia-api'
+      - ".env.columbia-api"
     environment:
       COLUMBIA_APP: api
-      GUNICORN_HOST: 0.0.0.0
-      ARANGODB_USER: quaerere
-      ARANGODB_PASSWORD: password
-      ARANGODB_ROOT_PASSWORD: password
-      FLASK_SECRET_KEY: integration-testing
-      FLASK_ENV: development
-      ARANGODB_HOST: http://test_db:8529
-      FLASK_APP: willamette.app:create_app
-      GUNICORN_LOGLEVEL: debug
+      COLUMBIA_URL_PREFIX: http://columbia-api:5000/api/
+      FLASK_APP: columbia.app:create_app
+      WILLAMETTE_URL: http://willamette-api:5000/api/
 
   columbia-tasks:
-    build: .
-    ports:
-      - "5000:5000"
+    build:
+      context: "."
+      args:
+        develop: "true"
     depends_on:
       - columbia-api
+      - quaerere-arangodb
+      - quaerere-rabbitmq
+      - quaerere-redis
+      - willamette-api
     env_file:
-      - '.env-columbia-tasks'
+      - ".env.columbia-tasks"
     environment:
-      COLUMBIA_APP: tasks
+      ARANGODB_HOST: http://quaerere-arangodb:8529
       CELERY_BROKER_HOST: quaerere-rabbitmq
       CELERY_RESULT_HOST: quaerere-redis
+      COLUMBIA_APP: tasks
 
   columbia-scheduler:
-    build: .
-    ports:
-      - "5000:5000"
+    build:
+      context: "."
+      args:
+        develop: "true"
     depends_on:
       - columbia-api
+      - quaerere-arangodb
+      - quaerere-rabbitmq
+      - quaerere-redis
+      - willamette-api
     env_file:
-      - '.env-columbia-scheduler'
+      - ".env.columbia-scheduler"
     environment:
-      COLUMBIA_APP: scheduler
+      ARANGODB_HOST: http://quaerere-arangodb:8529
       CELERY_BROKER_HOST: quaerere-rabbitmq
       CELERY_RESULT_HOST: quaerere-redis
+      COLUMBIA_APP: scheduler

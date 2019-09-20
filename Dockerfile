@@ -1,16 +1,15 @@
 FROM python:3.7-alpine
-RUN apk update && upgrade
-RUN apk add gcc git musl-dev yaml yaml-dev
+ARG develop
 RUN mkdir /tmp/build /tmp/workdir
-COPY columbia /tmp/build/columbia
-COPY README.rst /tmp/build/
-COPY LICENSE.txt /tmp/build/
-COPY VERSION /tmp/build/
-COPY setup.* /tmp/build/
+COPY . /tmp/build/
+COPY entrypoint.sh /usr/bin/
 WORKDIR /tmp/build/
+RUN apk update && apk upgrade
+RUN apk add gcc git musl-dev yaml yaml-dev
 RUN pip install "gunicorn[eventlet]>=19.9.0"
+RUN if [ "${develop}" == "true" ]; then pip install -U -r requirements-bleeding.txt; pip freeze; fi
 RUN python setup.py install
 RUN apk del gcc musl-dev yaml-dev
-COPY entrypoint.sh /usr/bin/
 WORKDIR /tmp/workdir
+ENV FLASK_APP="columbia.app:create_app"
 ENTRYPOINT ["entrypoint.sh"]
