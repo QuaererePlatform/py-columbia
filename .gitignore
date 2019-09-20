@@ -15,3 +15,5 @@ build/
 .eggs/
 
 .env
+*.env
+.env.*

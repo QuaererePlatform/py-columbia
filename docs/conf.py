@@ -14,7 +14,13 @@
 #
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath('..'))
+
+
+def get_version():
+    with open('../VERSION') as f:
+        return f.readline().strip()
 
 
 # -- Project information -----------------------------------------------------
@@ -24,10 +30,9 @@ copyright = '2019, Caitlyn O\'Hanna'
 author = 'Caitlyn O\'Hanna'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.0.dev0'
+release = get_version()
 # The short X.Y version
 version = '.'.join(release.split('.')[:2])
-
 
 # -- General configuration ---------------------------------------------------
 
@@ -69,7 +74,6 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = None
 
-
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
@@ -104,7 +108,6 @@ html_static_path = ['_static']
 # Output file base name for HTML help builder.
 htmlhelp_basename = 'quaerere-columbiadoc'
 
-
 # -- Options for LaTeX output ------------------------------------------------
 
 latex_elements = {
@@ -133,7 +136,6 @@ latex_documents = [
      'Caitlyn O\'Hanna', 'manual'),
 ]
 
-
 # -- Options for manual page output ------------------------------------------
 
 # One entry per manual page. List of tuples
@@ -142,7 +144,6 @@ man_pages = [
     (master_doc, 'quaerere-columbia', 'quaerere-columbia Documentation',
      [author], 1)
 ]
-
 
 # -- Options for Texinfo output ----------------------------------------------
 
@@ -154,7 +155,6 @@ texinfo_documents = [
      author, 'quaerere-columbia', 'One line description of project.',
      'Miscellaneous'),
 ]
-
 
 # -- Options for Epub output -------------------------------------------------
 
@@ -172,6 +172,5 @@ epub_title = project
 
 # A list of files that should not be packed into the epub file.
 epub_exclude_files = ['search.html']
-
 
 # -- Extension configuration -------------------------------------------------

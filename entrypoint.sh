@@ -6,8 +6,10 @@ if test -z "$COLUMBIA_APP"; then
 fi
 case $COLUMBIA_APP in
     api)
+        echo "Creating/Upgrading database"
+        flask db init
         echo "Running the API app"
-        exec gunicorn -c python:columbia.config.gunicorn_config columbia.app:create_app
+        exec gunicorn -c "python:columbia.config.gunicorn_config" "columbia.app:create_app()"
         ;;
     tasks)
         echo "Running the tasks app"

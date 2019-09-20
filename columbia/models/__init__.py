@@ -1,10 +1,13 @@
-__all__ = ['get_collections', 'CCDataModel', 'CCIndexesModel', 'CCScansModel']
+__all__ = ['get_collections', 'CCDataModelV1', 'CCIndexesModelV1',
+           'CCScansModelV1']
 
 import sys, inspect
 
 from arango_orm import Collection
 
-from .api_v1 import (CCDataModel, CCIndexesModel, CCScansModel)
+from .api_v1 import CCDataModel as CCDataModelV1
+from .api_v1 import CCIndexesModel as CCIndexesModelV1
+from .api_v1 import CCScansModel as CCScansModelV1
 
 
 def _model_classes():
