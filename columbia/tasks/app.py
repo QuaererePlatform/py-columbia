@@ -3,10 +3,13 @@ __all__ = ['app', 'ColumbiaTask']
 from arango import ArangoClient
 from arango_orm import ConnectionPool, Database
 from celery import Celery, Task
-from willamette_client import WillametteClient
+from celery.utils.log import get_task_logger
+# from willamette_client import WillametteClient
 
-from columbia.config.celery_config import (columbia_config, willamette_config)
+from columbia.config.celery_config import willamette_config
 from columbia.config import common as common_config
+
+LOGGER = get_task_logger(__name__)
 
 
 class ColumbiaTask(Task):
@@ -22,15 +25,17 @@ class ColumbiaTask(Task):
             self._db_conn = get_db()
         return self._db_conn
 
-    @property
-    def willamette(self):
-        if self._willamette is None:
-            self._willamette = WillametteClient(
-                self.willamette_config['WILLAMETTE_URL'])
-        return self._willamette
+    # @property
+    # def willamette(self):
+    #     if self._willamette is None:
+    #         self._willamette = WillametteClient(
+    #             self.willamette_config['WILLAMETTE_URL'])
+    #     return self._willamette
 
     def after_return(self, status, retval, task_id, args, kwargs, einfo):
-        pass
+        LOGGER.info(f"after_return; status: {status}, retval: {retval}, "
+                    f"task_id: {task_id}, args: {args}, kwargs: {kwargs}, "
+                    f"einfo: {einfo}")
 
 
 def get_db():
@@ -50,8 +55,9 @@ def get_db():
                               host=host,
                               port=port)
         return Database(client.db(name=common_config.ARANGODB_DATABASE,
-                                  username=common_config.ARANGODB_PASSWORD,
-                                  password=common_config.ARANGODB_USER))
+                                  username=common_config.ARANGODB_USER,
+                                  password=common_config.ARANGODB_PASSWORD))
+
 
 app = Celery(__name__)
 app.config_from_object('columbia.config.celery_config')

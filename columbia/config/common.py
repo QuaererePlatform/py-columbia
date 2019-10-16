@@ -11,7 +11,7 @@ WILLAMETTE_URL = os.environ.get("WILLAMETTE_URL",
                                 'http://willamette.quaerere.local:5000/api/')
 COLUMBIA_URL_PREFIX = os.environ.get(
     "COLUMBIA_URL_PREFIX",
-    'http://columbia.quaerere.local:5000/api/'
+    'http://columbia.quaerere.local:5000'
 )
 ARANGODB_USER = os.environ.get("ARANGODB_USER", default=None)
 if not ARANGODB_USER:

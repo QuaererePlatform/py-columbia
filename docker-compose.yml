@@ -23,7 +23,7 @@ services:
       - "15672:15672"
 
   willamette-api:
-    image: "quaerereplatform/willamette:0.1"
+    image: "quaerereplatform/willamette:0.1.1"
     ports:
       - "5000:5000"
     depends_on:
@@ -51,7 +51,7 @@ services:
       - ".env.columbia-api"
     environment:
       COLUMBIA_APP: api
-      COLUMBIA_URL_PREFIX: http://columbia-api:5000/api/
+      COLUMBIA_URL_PREFIX: http://columbia-api:5000
       FLASK_APP: columbia.app:create_app
       WILLAMETTE_URL: http://willamette-api:5000/api/
 
@@ -73,6 +73,7 @@ services:
       CELERY_BROKER_HOST: quaerere-rabbitmq
       CELERY_RESULT_HOST: quaerere-redis
       COLUMBIA_APP: tasks
+      WILLAMETTE_URL: http://willamette-api:5000/api/
 
   columbia-scheduler:
     build:

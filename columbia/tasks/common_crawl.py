@@ -1,24 +1,47 @@
-__all__ = ['start_scan', 'update_all_cc_data', 'update_cc_index_info']
+__all__ = ['get_cc_data', 'update_cc_index_data']
 
 import json
 
+from arango import DocumentInsertError
 from celery.utils.log import get_task_logger
-from columbia_common.schemas.api_v1 import CCIndexesSchema
+from columbia_common.schemas.api_v1 import (
+    CCDataSchema,
+    CCScansSchema,
+    CCIndexesSchema)
 import requests
 
 from columbia.config import common as config
-from columbia.models.api_v1.common_crawl import CCDataModel, CCIndexesModel
+from columbia.models.api_v1.common_crawl import (
+    CCDataModel,
+    CCScansModel,
+    CCIndexesModel)
 from .app import app, ColumbiaTask
 
 LOGGER = get_task_logger(__name__)
 
 
 @app.task(base=ColumbiaTask, bind=True)
-def start_scan(self, web_site_key, cc_index_key):
+def get_cc_data(self, web_site_key, cc_index_key):
+    """Scan a Common Crawl index for a web site
+
+    This method gets bound to ColumbiaTask
+
+    :param self: hide me
+    :param web_site_key:
+    :param cc_index_key:
+    :return:
+    """
     # TODO: Let's figure out how to rate limit things...
     # TODO: Maybe even figure out how to do smaller chunk tracking for resuming
 
-    web_site = self.willamette.v1.web_site.get(web_site_key)
+    # Until client code is more stable, use requests directly
+    # web_site = self.willamette.v1.web_site.get(web_site_key)
+    resp = requests.get(config.WILLAMETTE_URL + f'v1/web-site/{web_site_key}')
+    if not resp.ok:
+        LOGGER.error(f'Could not retrieve web_site data; '
+                     f'_key={web_site_key}, reason: {resp.json()}')
+        raise Exception  # FIXME
+    web_site = resp.json()
     cc_index = self.db_conn.query(CCIndexesModel).by_key(cc_index_key)
 
     index_url = cc_index.cdx_api
@@ -33,54 +56,86 @@ def start_scan(self, web_site_key, cc_index_key):
                        'index_url': index_url,
                        'web_site_url': web_site_url, })
     req = requests.get(index_url, params)
-    if req.status_code == 200:
-        for record in req.text.splitlines():
-            record = json.loads(record)
-            if record['status'] != '200':
-                # This is only done as a double-check
-                LOGGER.error('Not sure how we ended up here.',
-                             stack_info=True,
-                             extra={'record': record,
-                                    'params': params,
-                                    'index_url': index_url, })
-                continue
-            LOGGER.debug('Evaluating record for CommonCrawl data',
-                         extra={'record': record})
-            cc_data = CCDataModel(record)
-            self.db_conn.add(cc_data)
-        LOGGER.debug(f'Finished with {cc_index_key}')
-    else:
+    if req.status_code != 200:
         LOGGER.error(f'Error searching {cc_index_key}',
                      stack_info=True,
                      extra={'params': params,
                             'index_url': index_url})
+        raise Exception  # FIXME
+    records = req.text.splitlines()
+    LOGGER.info(f'Found {len(records)} records')
+    for record in records:
+        unmarshall = CCDataSchema().load(json.loads(record))
+        if len(unmarshall.errors) != 0:
+            LOGGER.warning(f'Errors unmarshalling record: {unmarshall.errors}')
+            continue
+        record = unmarshall.data
+        LOGGER.debug('Inserting record for CommonCrawl data: '
+                     f"{record['url_key']}", extra={'record': record})
+        try:
+            self.db_conn.add(CCDataModel(**record))
+        except DocumentInsertError as err:
+            if '[ERR 1210]' in err.message:
+                LOGGER.debug(f'Record exists: {err.message}')
+            else:
+                raise err
+    LOGGER.info(f'Finished with {cc_index_key}')
 
 
 @app.task(base=ColumbiaTask, bind=True)
-def update_all_cc_data(self):
-    web_sites = self.willamette.v1.web_site.all()
-    sub_tasks = []
-    for web_site in web_sites:
-        for index_key in self.db_conn.query(CCIndexesModel).returns('_key').all():
-            sub_tasks.append((web_site['_key'], index_key))
-    return sub_tasks
+def update_web_site_cc_data(self, web_site_key):
+    """Gets web site data from all Common Crawl indexes
 
+    This method gets bound to ColumbiaTask
+
+    :param self: hide me
+    :param web_site_key:
+    :return:
+    """
+    scan_url = config.COLUMBIA_URL_PREFIX + '/api/v1/cc-scans/'
+    scan_schema = CCScansSchema()
+    for index in self.db_conn.query(CCIndexesModel).all():
+        if self.db_conn.query(
+                CCScansModel).filter("cc_index_key==@index",
+                                     index=index._key
+                                     ).filter("web_site_key==@web_site",
+                                              web_site=web_site_key
+                                              ).count() == 0:
+            scan = scan_schema.dump({'web_site_key': web_site_key,
+                                     'cc_index_key': index._key})
+            resp = requests.post(scan_url, json=scan.data)
+            if not resp.ok:
+                err = f"Could not create scan; " \
+                      f"web_site_key: {web_site_key}, " \
+                      f"cc_index_key: {index._key}, " \
+                      f"status_code: {resp.status_code}, " \
+                      f"error_data: {resp.text}"
+                LOGGER.warning(err)
 
 
 @app.task(base=ColumbiaTask, bind=True)
-def update_cc_index_info(self):
+def update_cc_index_data(self):
+    """Gets Common Crawl index data
+
+    This method gets bound to ColumbiaTask
+
+    :param self: hide me
+    :return:
+    """
     LOGGER.info(f'Retrieving {config.CC_COLL_INFO_URL}')
     resp = requests.get(config.CC_COLL_INFO_URL)
-    if resp.status_code == 200:
-        schema = CCIndexesSchema()
-        data = schema.load(resp.json(), many=True)
-        if len(data.errors) > 0:
-            LOGGER.error(f'Errors from unmarshal: {data.errors}')
-            raise Exception
-        for record in data.data:
-            cc_index = CCIndexesModel(**record)
-            self.db_conn.add(cc_index)
-    else:
+    if resp.status_code != 200:
         LOGGER.error(f'Error {resp.status_code} retrieving'
                      f' {config.CC_COLL_INFO_URL}')
+        raise Exception  # FIXME
+
+    schema = CCIndexesSchema()
+    data = schema.load(resp.json(), many=True)
+    if len(data.errors) > 0:
+        LOGGER.error(f'Errors from unmarshal: {data.errors}')
         raise Exception
+    LOGGER.info(f'Found {len(data.data)} records')
+    for record in data.data:
+        cc_index = CCIndexesModel(**record)
+        LOGGER.debug(f'Inserting values: {record}')
+        self.db_conn.add(cc_index)

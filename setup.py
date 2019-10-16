@@ -3,6 +3,7 @@
 """
 
 import os
+import re
 import sys
 
 from setuptools import setup
@@ -18,12 +19,12 @@ INSTALL_REQUIRES = [
     'marshmallow<3,>=2.16.0',
     'python-arango<5,>=4.4',
     'quaerere-base-flask>=0.3.0',
-    'quaerere-columbia-common',
+    'quaerere-columbia-common>=0.1.0',
     'quaerere-willamette-client',
 ]
 SETUP_REQUIRES = [
     'pytest-runner',
-    'Sphinx>=1.8.0',
+    'Sphinx<2,>=1.8.0',
     'sphinx-rtd-theme',
     'setuptools',
 ]
@@ -54,6 +55,10 @@ class VerifyVersionCommand(install):
     description = 'verify that the git tag matches our version'
 
     def run(self):
+        release_regex = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+$')
+        if not release_regex.match(PROJECT_RELEASE):
+            sys.exit(0)
+
         tag = os.getenv('CIRCLE_TAG')
 
         if tag != 'v' + PROJECT_RELEASE:
@@ -99,4 +104,4 @@ setup(name=PROJECT_NAME,
       cmdclass={
           'mk_reqs': WriteRequirementsCommand,
           'verify': VerifyVersionCommand,
-      },)
+      }, )
