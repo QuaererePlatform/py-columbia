@@ -1,4 +1,9 @@
-__all__ = ['get_cc_data', 'update_cc_index_data']
+__all__ = [
+    'get_cc_data',
+    'update_all_web_site_cc_data',
+    'update_cc_index_data',
+    'update_web_site_cc_data',
+]
 
 import json
 
@@ -15,12 +20,12 @@ from columbia.models.api_v1.common_crawl import (
     CCDataModel,
     CCScansModel,
     CCIndexesModel)
-from .app import app, ColumbiaTask
+from .app import app, CCScanTask
 
 LOGGER = get_task_logger(__name__)
 
 
-@app.task(base=ColumbiaTask, bind=True)
+@app.task(base=CCScanTask, bind=True)
 def get_cc_data(self, web_site_key, cc_index_key):
     """Scan a Common Crawl index for a web site
 
@@ -65,11 +70,11 @@ def get_cc_data(self, web_site_key, cc_index_key):
     records = req.text.splitlines()
     LOGGER.info(f'Found {len(records)} records')
     for record in records:
-        unmarshall = CCDataSchema().load(json.loads(record))
-        if len(unmarshall.errors) != 0:
-            LOGGER.warning(f'Errors unmarshalling record: {unmarshall.errors}')
+        unmarshal = CCDataSchema().load(json.loads(record))
+        if len(unmarshal.errors) != 0:
+            LOGGER.warning(f"Errors unmarshalling record: {unmarshal.errors}")
             continue
-        record = unmarshall.data
+        record = unmarshal.data
         LOGGER.debug('Inserting record for CommonCrawl data: '
                      f"{record['url_key']}", extra={'record': record})
         try:
@@ -82,7 +87,7 @@ def get_cc_data(self, web_site_key, cc_index_key):
     LOGGER.info(f'Finished with {cc_index_key}')
 
 
-@app.task(base=ColumbiaTask, bind=True)
+@app.task(base=CCScanTask, bind=True)
 def update_web_site_cc_data(self, web_site_key):
     """Gets web site data from all Common Crawl indexes
 
@@ -113,7 +118,23 @@ def update_web_site_cc_data(self, web_site_key):
                 LOGGER.warning(err)
 
 
-@app.task(base=ColumbiaTask, bind=True)
+@app.task(base=CCScanTask, bind=True)
+def update_all_web_site_cc_data(self):
+    scan_url = config.COLUMBIA_URL_PREFIX + '/api/v1/cc-scans/scan-web-site/'
+    web_sites_url = config.WILLAMETTE_URL + 'v1/web-sites/'
+    resp = requests.get(web_sites_url)
+    if not resp.ok:
+        raise Exception  # Fixme
+    web_sites = resp.json()
+    for web_site in web_sites:
+        resp = requests.post(scan_url, json={'web_site_key': web_site['_key']})
+        if not resp.ok:
+            LOGGER.warning(
+                f"Unable to create scan for web_site '{web_site['_key']}',"
+                f" reason: status_code: {resp.status_code}, {resp.json()}")
+
+
+@app.task(base=CCScanTask, bind=True)
 def update_cc_index_data(self):
     """Gets Common Crawl index data
 

@@ -7,14 +7,15 @@ import logging
 
 from columbia_common.schemas.api_v1 import (
     CCDataSchema, CCIndexesSchema, CCScansSchema)
-from flask import jsonify, request, url_for
+from flask import jsonify, request
+from flask_classful import route
 from quaerere_base_flask.views.base import BaseView
-import requests
+from werkzeug.exceptions import MethodNotAllowed
 
 from columbia.app_util import ArangoDBMixin
-from columbia.config.common import COLUMBIA_URL_PREFIX
 from columbia.models.api_v1 import (CCDataModel, CCIndexesModel, CCScansModel)
-from columbia.tasks.common_crawl import get_cc_data
+from columbia.tasks.common_crawl import (
+    get_cc_data, update_all_web_site_cc_data, update_web_site_cc_data)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +37,6 @@ class CCIndexesView(ArangoDBMixin, BaseView):
 class CCScansView(ArangoDBMixin, BaseView):
     _obj_model = CCScansModel
     _obj_schema = CCScansSchema
-    default_methods = ['POST']
 
     def _post_create_callback(self, metadata):
         db_conn = self._get_db()
@@ -47,5 +47,28 @@ class CCScansView(ArangoDBMixin, BaseView):
         db_conn.update(cc_scan)
 
     def delete(self, key):
-        errors = {'errors': 'Method Not Allowed'}
-        return jsonify(errors), 405
+        raise MethodNotAllowed(
+            valid_methods=[
+                'HEAD',
+                'OPTIONS',
+                'GET',
+                'POST',
+            ]
+        )
+
+    @route('all-web-sites/', methods=['GET', 'OPTIONS'])
+    def scan_all_web_sites(self):
+        update_all_web_site_cc_data.delay()
+
+    @route('web-site/', methods=['POST', 'OPTIONS'])
+    def scan_web_site(self):
+        valid_methods = ['POST', 'OPTIONS']
+        if request.method not in valid_methods:
+            raise MethodNotAllowed(valid_methods=valid_methods)
+        try:
+            web_site_key = request.json['web_site_key']
+        except KeyError:
+            errors = {'errors': 'Missing required key "web_site_key"'}
+            return jsonify(errors), 400
+        else:
+            update_web_site_cc_data.delay(web_site_key)

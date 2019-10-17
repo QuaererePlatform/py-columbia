@@ -1,4 +1,4 @@
-__all__ = ['app', 'ColumbiaTask']
+__all__ = ['app', 'CCScanTask']
 
 from arango import ArangoClient
 from arango_orm import ConnectionPool, Database
@@ -8,11 +8,12 @@ from celery.utils.log import get_task_logger
 
 from columbia.config.celery_config import willamette_config
 from columbia.config import common as common_config
+from columbia.models import CCScansModelV1
 
 LOGGER = get_task_logger(__name__)
 
 
-class ColumbiaTask(Task):
+class CCScanTask(Task):
     _db_conn = None
     _willamette = None
 
@@ -25,6 +26,7 @@ class ColumbiaTask(Task):
             self._db_conn = get_db()
         return self._db_conn
 
+    # Client disabled until more stable, using plain requests for now
     # @property
     # def willamette(self):
     #     if self._willamette is None:
@@ -36,6 +38,10 @@ class ColumbiaTask(Task):
         LOGGER.info(f"after_return; status: {status}, retval: {retval}, "
                     f"task_id: {task_id}, args: {args}, kwargs: {kwargs}, "
                     f"einfo: {einfo}")
+        task = self.db_conn.query(CCScansModelV1).filter("task_id==@task_id",
+                                                         task_id=task_id).one()
+        task.status = status
+        self.db_conn.update(task)
 
 
 def get_db():

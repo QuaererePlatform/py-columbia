@@ -11,9 +11,11 @@ from columbia_common.schemas.api_v1.mixins import (
 class CCDataModel(CCDataFieldsMixin, Collection):
     __collection__ = 'CommonCrawlData'
     _index = [
-        {'type': 'hash',
-         'fields': ['timestamp', 'url_key'],
-         'unique': True}]
+        {
+            'type': 'hash',
+            'fields': ['timestamp', 'url_key'],
+            'unique': True},
+    ]
 
 
 class CCIndexesModel(CCIndexesFieldsMixin, Collection):
@@ -23,8 +25,15 @@ class CCIndexesModel(CCIndexesFieldsMixin, Collection):
 class CCScansModel(CCScansFieldsMixin, Collection):
     __collection__ = 'CommonCrawlScans'
     _index = [
-        {'type': 'hash',
-         'fields': ['web_site_key', 'cc_index_key'],
-         'unique': True}]
+        {
+            'type': 'hash',
+            'fields': ['web_site_key', 'cc_index_key'],
+            'unique': True,
+        },
+        {
+            'type': 'hash',
+            'fields': ['task_id'],
+        },
+    ]
 
     cc_index = relationship(CCIndexesModel, 'cc_index_key')
