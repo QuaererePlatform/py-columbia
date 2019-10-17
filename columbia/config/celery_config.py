@@ -37,6 +37,6 @@ arangodb_config = {'ARANGODB_CLUSTER': ARANGODB_CLUSTER,
 cc_config = {'CC_COLL_INFO_URL': CC_COLL_INFO_URL,
              'CC_DATA_URL_PREFIX': CC_DATA_URL_PREFIX}
 
-columbia_config = {'COLUMBIA_URL': COLUMBIA_URL_PREFIX}
+columbia_config = {'COLUMBIA_URL': COLUMBIA_URL_PREFIX + '/api/'}
 
 willamette_config = {'WILLAMETTE_URL': WILLAMETTE_URL}

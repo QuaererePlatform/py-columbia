@@ -1,15 +1,19 @@
-__all__ = ['app', 'ColumbiaTask']
+__all__ = ['app', 'CCScanTask']
 
 from arango import ArangoClient
 from arango_orm import ConnectionPool, Database
 from celery import Celery, Task
-from willamette_client import WillametteClient
+from celery.utils.log import get_task_logger
+# from willamette_client import WillametteClient
 
-from columbia.config.celery_config import (columbia_config, willamette_config)
+from columbia.config.celery_config import willamette_config
 from columbia.config import common as common_config
+from columbia.models import CCScansModelV1
+
+LOGGER = get_task_logger(__name__)
 
 
-class ColumbiaTask(Task):
+class CCScanTask(Task):
     _db_conn = None
     _willamette = None
 
@@ -22,15 +26,22 @@ class ColumbiaTask(Task):
             self._db_conn = get_db()
         return self._db_conn
 
-    @property
-    def willamette(self):
-        if self._willamette is None:
-            self._willamette = WillametteClient(
-                self.willamette_config['WILLAMETTE_URL'])
-        return self._willamette
+    # Client disabled until more stable, using plain requests for now
+    # @property
+    # def willamette(self):
+    #     if self._willamette is None:
+    #         self._willamette = WillametteClient(
+    #             self.willamette_config['WILLAMETTE_URL'])
+    #     return self._willamette
 
     def after_return(self, status, retval, task_id, args, kwargs, einfo):
-        pass
+        LOGGER.info(f"after_return; status: {status}, retval: {retval}, "
+                    f"task_id: {task_id}, args: {args}, kwargs: {kwargs}, "
+                    f"einfo: {einfo}")
+        task = self.db_conn.query(CCScansModelV1).filter("task_id==@task_id",
+                                                         task_id=task_id).one()
+        task.status = status
+        self.db_conn.update(task)
 
 
 def get_db():
@@ -50,8 +61,9 @@ def get_db():
                               host=host,
                               port=port)
         return Database(client.db(name=common_config.ARANGODB_DATABASE,
-                                  username=common_config.ARANGODB_PASSWORD,
-                                  password=common_config.ARANGODB_USER))
+                                  username=common_config.ARANGODB_USER,
+                                  password=common_config.ARANGODB_PASSWORD))
+
 
 app = Celery(__name__)
 app.config_from_object('columbia.config.celery_config')
