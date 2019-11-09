@@ -1,15 +1,18 @@
-FROM python:3.7-alpine
-ARG develop
+ARG python_version=3.7
+ARG gunicorn_version=19.9.0
+
+FROM python:${python_version}-alpine
+ARG gunicorn_version
 RUN mkdir /tmp/build /tmp/workdir
 COPY . /tmp/build/
-COPY entrypoint.sh /usr/bin/
+COPY entrypoint.sh /usr/bin/entrypoint.sh
 WORKDIR /tmp/build/
-RUN apk update && apk upgrade
-RUN apk add gcc git musl-dev yaml yaml-dev
-RUN pip install "gunicorn[eventlet]>=19.9.0"
-RUN if [ "${develop}" == "true" ]; then pip install -U -r requirements-bleeding.txt; pip freeze; fi
-RUN python setup.py install
-RUN apk del gcc musl-dev yaml-dev
+RUN apk update && \
+    apk upgrade && \
+    apk add gcc git musl-dev yaml yaml-dev && \
+    pip install "gunicorn[eventlet]>=${gunicorn_version}" && \
+    python setup.py install && \
+    apk del gcc musl-dev yaml-dev
 WORKDIR /tmp/workdir
 ENV FLASK_APP="columbia.app:create_app"
 ENTRYPOINT ["entrypoint.sh"]

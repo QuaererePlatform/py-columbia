@@ -5,6 +5,8 @@ __all__ = [
     'update_web_site_cc_data',
 ]
 
+import gzip
+import io
 import json
 
 from arango import DocumentInsertError
@@ -20,9 +22,12 @@ from columbia.models.api_v1.common_crawl import (
     CCDataModel,
     CCScansModel,
     CCIndexesModel)
-from .app import app, CCScanTask
+from .app import app, CCScanTask, ColumbiaTask
 
 LOGGER = get_task_logger(__name__)
+
+
+
 
 
 @app.task(base=CCScanTask, bind=True)
@@ -72,7 +77,7 @@ def get_cc_data(self, web_site_key, cc_index_key):
     for record in records:
         unmarshal = CCDataSchema().load(json.loads(record))
         if len(unmarshal.errors) != 0:
-            LOGGER.warning(f"Errors unmarshalling record: {unmarshal.errors}")
+            LOGGER.warning(f'Errors unmarshalling record: {unmarshal.errors}')
             continue
         record = unmarshal.data
         LOGGER.debug('Inserting record for CommonCrawl data: '
@@ -85,6 +90,62 @@ def get_cc_data(self, web_site_key, cc_index_key):
             else:
                 raise err
     LOGGER.info(f'Finished with {cc_index_key}')
+
+
+@app.task(base=ColumbiaTask, bind=True)
+def download_web_page_data(self, cc_data_key, web_site_key):
+    cc_data = self.db_conn.query(CCScansModel).by_key(cc_data_key)
+    url = config.CC_DATA_URL_PREFIX + cc_data.filename
+    file_end = cc_data.offset + cc_data.length - 1
+    headers = {'Range': f'bytes={cc_data.offset}-{file_end}'}
+    LOGGER.info()
+    resp = requests.get(url, headers=headers)
+    if not resp.ok:
+        LOGGER.critical(f'Could not get data for web page: {cc_data}; '
+                        f'{resp.status_code}, {resp.reason}')
+        raise Exception  # FIXME
+    web_page_data = gzip.GzipFile(
+        fileobj=io.BytesIO(resp.content)).read().decode()
+    _, _, html = web_page_data.strip().split('\r\n\r\n', 2)
+    url = config.WILLAMETTE_URL + 'v1/web-page/find/'
+    params = {
+        'conditions': [
+            'url==@url',
+            'source_accounting.datetime_acquired==@date',
+            'source_accounting.data_origin==@origin'
+        ],
+        'variables': {
+            'url': cc_data.url,
+            'date': cc_data.timestamp,
+            'origin': 'common_crawl'
+        },
+    }
+    resp = requests.get(url, params=params)
+    if not resp.ok:
+        LOGGER.critical(f'Could not query willamette for web page: {params}; '
+                        f'{resp.status_code}, {resp.reason}')
+        raise Exception  # FIXME
+    q_data = resp.json()
+    if len(q_data['result']) == 0:
+        url = config.WILLAMETTE_URL + 'v1/web-page/'
+        web_page_data = {
+            'text': html,
+            'url': cc_data.url,
+            'web_site_key': web_site_key,
+            'source_accounting': {
+                'datetime_acquired': cc_data.timestamp,
+                'data_origin': 'common_crawl',
+            }
+        }
+        resp = requests.post(url, json=web_page_data)
+        if not resp.ok:
+            LOGGER.critical(f'Could not save web page data: {web_page_data}; '
+                            f'{resp.status_code}, {resp.reason}')
+            raise Exception  # FIXME
+    else:
+        # This is temporary, we should figure out how to either do versions or
+        #   add a timestamp field so we can track changes to the web page
+        LOGGER.warning(f'Web page data exists, doing nothing')
 
 
 @app.task(base=CCScanTask, bind=True)
@@ -131,7 +192,7 @@ def update_all_web_site_cc_data(self):
         if not resp.ok:
             LOGGER.warning(
                 f"Unable to create scan for web_site '{web_site['_key']}',"
-                f" reason: status_code: {resp.status_code}, {resp.json()}")
+                f' reason: status_code: {resp.status_code}, {resp.json()}')
 
 
 @app.task(base=CCScanTask, bind=True)

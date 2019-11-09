@@ -2,6 +2,7 @@ version: "3"
 
 services:
   web_app:
-    build:
-      args:
-        develop: "true"
+    volumes:
+      - "../../quaerere-base-common/quaerere_base_common:/usr/local/lib/python3.7/site-packages/quaerere_base_common"
+      - "../../quaerere-base-flask/quaerere_base_flask:/usr/local/lib/python3.7/site-packages/quaerere_base_flask"
+      - "../../columbia-common/columbia_common:/usr/local/lib/python3.7/site-packages/columbia_common"

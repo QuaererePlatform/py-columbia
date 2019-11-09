@@ -4,21 +4,15 @@ from arango import ArangoClient
 from arango_orm import ConnectionPool, Database
 from celery import Celery, Task
 from celery.utils.log import get_task_logger
-# from willamette_client import WillametteClient
 
-from columbia.config.celery_config import willamette_config
 from columbia.config import common as common_config
 from columbia.models import CCScansModelV1
 
 LOGGER = get_task_logger(__name__)
 
 
-class CCScanTask(Task):
+class ColumbiaTask(Task):
     _db_conn = None
-    _willamette = None
-
-    def __init__(self):
-        self.willamette_config = willamette_config
 
     @property
     def db_conn(self):
@@ -26,13 +20,8 @@ class CCScanTask(Task):
             self._db_conn = get_db()
         return self._db_conn
 
-    # Client disabled until more stable, using plain requests for now
-    # @property
-    # def willamette(self):
-    #     if self._willamette is None:
-    #         self._willamette = WillametteClient(
-    #             self.willamette_config['WILLAMETTE_URL'])
-    #     return self._willamette
+
+class CCScanTask(ColumbiaTask):
 
     def after_return(self, status, retval, task_id, args, kwargs, einfo):
         LOGGER.info(f"after_return; status: {status}, retval: {retval}, "
