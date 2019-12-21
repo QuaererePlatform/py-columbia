@@ -1,9 +1,0 @@
-git+https://github.com/ravenoak/arango-orm@update_meta#egg=arango-orm
-
-#/tmp/build/src/quaerere-base-common/
-#/tmp/build/src/quaerere-base-flask/
-#/tmp/build/src/columbia-common/
-
-git+https://github.com/QuaererePlatform/quaerere-base-common@develop#egg=quaerere-base-common
-git+https://github.com/QuaererePlatform/quaerere-base-flask@develop#egg=quaerere-base-flask
-git+https://github.com/QuaererePlatform/columbia-common@develop#egg=quaerere-columbia-common

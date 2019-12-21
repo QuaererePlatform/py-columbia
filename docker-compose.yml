@@ -23,7 +23,7 @@ services:
       - "15672:15672"
 
   willamette-api:
-    image: "quaerereplatform/willamette:0.1.1"
+    image: "quaerereplatform/willamette:0.1.2"
     ports:
       - "5000:5000"
     depends_on:
@@ -54,6 +54,10 @@ services:
       COLUMBIA_URL_PREFIX: http://columbia-api:5000
       FLASK_APP: columbia.app:create_app
       WILLAMETTE_URL: http://willamette-api:5000/api/
+    volumes:
+      - "../quaerere-base-common/quaerere_base_common:/usr/local/lib/python3.7/site-packages/quaerere_base_common"
+      - "../quaerere-base-flask/quaerere_base_flask:/usr/local/lib/python3.7/site-packages/quaerere_base_flask"
+      - "../columbia-common/columbia_common:/usr/local/lib/python3.7/site-packages/columbia_common"
 
   columbia-tasks:
     build:
